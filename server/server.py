@@ -1,110 +1,58 @@
 import socket
+import struct
 import os
-import json
-import hashlib 
-import base64
 import threading
 
 SERVER_IP = '192.168.100.100'
 SERVER_PORT = 5000
-BUFFER_SIZE = 5 * 1024 * 1024
+BUFFER_SIZE = 1024 * 1024 
 
-file_data = {}
+def receive_data(client_socket):
+    data_len_bytes = client_socket.recv(4)
+    if not data_len_bytes:
+        return None
+    data_len = struct.unpack('!I', data_len_bytes)[0]
+    data = client_socket.recv(data_len)
+    return data
 
-def handle_upload_chunk(client_socket, address, filename, filesize):
+def receive_chunk(client_socket, chunk_num):
     try:
-        # Calculate number of chunks
-        num_chunks = (filesize + BUFFER_SIZE - 1) // BUFFER_SIZE
-
-        file_data[filename] = []
-
-        for chunk_num in range(num_chunks):
-            if chunk_num == num_chunks - 1:
-                # Last chunk may be smaller than BUFFER_SIZE
-                chunk_size = filesize % BUFFER_SIZE
-            else:
-                chunk_size = BUFFER_SIZE
-
-            data = client_socket.recv(chunk_size)
-            if not data:
-                break
-            
-            chunk_info = json.loads(data.decode())
-            received_chunk_num = chunk_info['chunk_num']
-            checksum = chunk_info['checksum']
-            encoded_chunk = chunk_info['data']
-
-            # Decode chunk from base64
-            chunk = base64.b64decode(encoded_chunk)
-
-            if hashlib.sha256(chunk).hexdigest() == checksum:
-                file_data[filename].append({'chunk_num': received_chunk_num, 'data': chunk})
-                client_socket.send(json.dumps({'ack': received_chunk_num}).encode())
-                print(f"Received chunk {received_chunk_num} from {address}")
-            else:
-                client_socket.send(json.dumps({'nack': received_chunk_num}).encode())
-                print(f"Received corrupted chunk {received_chunk_num} from {address}. Retrying...")
-
-        # Merge chunks into original file
-        with open(filename, 'wb') as f:
-            for chunk_info in sorted(file_data[filename], key=lambda x: x['chunk_num']):
-                f.write(chunk_info['data'])
-
-        print(f"File {filename} uploaded successfully from {address}")
-
+        chunk_data = receive_data(client_socket)
+        if chunk_data:
+            print(f"Received chunk {chunk_num} from client.")
+            return chunk_data
+        else:
+            print(f"Failed to receive chunk {chunk_num} from client.")
+            return None
     except Exception as e:
-        print(f"Error handling client {address}: {e}")
+        print(f"Error receiving chunk {chunk_num}: {e}")
+        return None
 
+def receive_file(client_socket, filename, filesize):
+    try:
+        with open(filename, 'wb') as f:
+            chunk_num = 0
+            while True:
+                chunk_data = receive_chunk(client_socket, chunk_num)
+                if not chunk_data:
+                    break
+                f.write(chunk_data)
+                chunk_num += 1
+            print(f"File {filename} received and saved.")
+    except Exception as e:
+        print(f"Error receiving file {filename}: {e}")
+
+def handle_client(client_socket):
+    try:
+        filename = receive_data(client_socket).decode()
+        filesize = int(receive_data(client_socket).decode())
+        print(f"Received request to upload file: {filename}, size: {filesize}")
+
+        receive_file(client_socket, filename, filesize)
+    except Exception as e:
+        print(f"Error handling client: {e}")
     finally:
         client_socket.close()
-
-
-def handle_download_chunk(client_socket, address, filename):
-    try:
-        if os.path.exists(filename):
-            filesize = os.path.getsize(filename)
-            client_socket.send(json.dumps({'filesize': filesize}).encode())
-
-            with open(filename, 'rb') as f:
-                while True:
-                    chunk = f.read(BUFFER_SIZE)
-                    if not chunk:
-                        break
-                    client_socket.send(chunk)
-        else:
-            client_socket.send(json.dumps({'error': 'File not found'}).encode())
-    except Exception as e:
-        print(f"Error handling download for {filename}: {str(e)}")
-    finally:
-        try:
-            client_socket.shutdown(socket.SHUT_RDWR)
-            client_socket.close()
-        except:
-            pass
-
-def handle_client(client_socket, address):
-    try:
-        while True:
-            request = client_socket.recv(1024).decode()
-            request_json = json.loads(request)
-
-            if request_json['type'] == 'upload':
-                filename = request_json['filename']
-                filesize = request_json['filesize']
-                handle_upload_chunk(client_socket, address, filename, filesize)
-
-            elif request_json['type'] == 'download':
-                filename = request_json['filename']
-                handle_download_chunk(client_socket, address, filename)
-
-    except Exception as e:
-        print(f"Error handling client {address}: {e}")
-    finally:
-        try:
-            client_socket.shutdown(socket.SHUT_RDWR)
-            client_socket.close()
-        except:
-            pass
 
 def start_server():
     server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -112,11 +60,16 @@ def start_server():
     server_socket.listen(5)
     print(f"Server listening on {SERVER_IP}:{SERVER_PORT}")
 
-    while True:
-        client_socket, address = server_socket.accept()
-        print(f"Accepted connection from {address}")
-        client_handler = threading.Thread(target=handle_client, args=(client_socket, address))
-        client_handler.start()
+    try:
+        while True:
+            client_socket, address = server_socket.accept()
+            print(f"Accepted connection from {address}")
+            client_handler = threading.Thread(target=handle_client, args=(client_socket,))
+            client_handler.start()
+    except Exception as e:
+        print(f"Error accepting connections: {e}")
+    finally:
+        server_socket.close()
 
 if __name__ == "__main__":
     start_server()
