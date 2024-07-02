@@ -42,17 +42,64 @@ def receive_file(client_socket, filename, filesize):
     except Exception as e:
         print(f"Error receiving file {filename}: {e}")
 
+def send_data(client_socket, data):
+    data_len = len(data)
+    client_socket.sendall(struct.pack('!I', data_len))
+    client_socket.sendall(data)
+
+def send_chunk(client_socket, chunk_data):
+    try:
+        send_data(client_socket, chunk_data)
+    except Exception as e:
+        print(f"Error sending chunk: {e}")
+
+def send_file(client_socket, filename):
+    try:
+        filesize = os.path.getsize(filename)
+        with open(filename, 'rb') as f:
+            while True:
+                chunk_data = f.read(BUFFER_SIZE)
+                if not chunk_data:
+                    break
+                send_chunk(client_socket, chunk_data)
+    except Exception as e:
+        print(f"Error sending file: {e}")
+
 def handle_client(client_socket):
     try:
-        filename = receive_data(client_socket).decode()
-        filesize = int(receive_data(client_socket).decode())
-        print(f"Received request to upload file: {filename}, size: {filesize}")
+        # Receive client's request (upload or download)
+        action = receive_data(client_socket).decode()
+        if action == 'u':
+            # Upload file from client to server
+            filename = receive_data(client_socket).decode()
+            filesize = int(receive_data(client_socket).decode())
+            print(f"Received request to upload file: {filename}, size: {filesize} bytes")
 
-        receive_file(client_socket, filename, filesize)
+            receive_file(client_socket, filename, filesize)
+
+        elif action == 'd':
+            # Download file from server to client
+            filename = receive_data(client_socket).decode()
+            print(f"Received request to download file: {filename}")
+
+            send_data(client_socket, filename.encode())
+
+            # Ensure file exists
+            if os.path.exists(filename):
+                send_data(client_socket, str(os.path.getsize(filename)).encode())
+                send_file(client_socket, filename)
+            else:
+                print(f"File {filename} does not exist.")
+                send_data(client_socket, b'0')  # Send 0 as file size to indicate file not found
+
+        else:
+            print("Invalid action received from client.")
+
     except Exception as e:
         print(f"Error handling client: {e}")
     finally:
         client_socket.close()
+
 
 def start_server():
     server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)

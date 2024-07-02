@@ -50,6 +50,82 @@ def send_file(filename):
     except Exception as e:
         print(f"Error uploading file {filename}: {e}")
 
+def receive_data(client_socket):
+    try:
+        data_len_bytes = client_socket.recv(4)
+        if not data_len_bytes:
+            return None
+        data_len = struct.unpack('!I', data_len_bytes)[0]
+        data = client_socket.recv(data_len)
+        return data
+    except Exception as e:
+        print(f"Error receiving data: {e}")
+        return None
+
+def receive_chunk(client_socket, chunk_num):
+    try:
+        data_len_bytes = client_socket.recv(4)
+        if not data_len_bytes:
+            return None
+        data_len = struct.unpack('!I', data_len_bytes)[0]
+        chunk_data = client_socket.recv(data_len)
+        print(f"Received chunk {chunk_num} from server.")
+        return chunk_data
+    except Exception as e:
+        print(f"Error receiving chunk {chunk_num}: {e}")
+        return None
+
+def receive_file(client_socket, filename, filesize):
+    try:
+        with open(filename, 'wb') as f:
+            chunk_num = 0
+            while True:
+                chunk_data = receive_chunk(client_socket, chunk_num)
+                if not chunk_data:
+                    break
+                f.write(chunk_data)
+                chunk_num += 1
+            print(f"File {filename} received and saved.")
+    except Exception as e:
+        print(f"Error receiving file {filename}: {e}")
+
+def download_file(filename):
+    try:
+        client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        client_socket.connect((SERVER_IP, SERVER_PORT))
+
+        # Send download request
+        send_data(client_socket, b'd')  # Send 'd' to indicate download
+        send_data(client_socket, filename.encode())
+
+        # Receive filename from server
+        filename_received = receive_data(client_socket)
+        if filename_received:
+            filename_received = filename_received.decode()
+        else:
+            raise Exception("Failed to receive filename from server.")
+
+        # Receive filesize from server
+        filesize_data = receive_data(client_socket)
+        if filesize_data:
+            filesize = int(filesize_data.decode())
+        else:
+            raise Exception("Failed to receive filesize from server.")
+
+        print(f"Downloading file: {filename_received}, size: {filesize} bytes")
+
+        # Receive file data in chunks and write to file
+        receive_file(client_socket, filename_received, filesize)
+
+        print(f"File {filename_received} downloaded successfully.")
+
+    except Exception as e:
+        print(f"Error downloading file {filename}: {e}")
+
+    finally:
+        client_socket.close()
+
+
 def main():
     while True:
         action = input("Bạn muốn tải lên (u) hay tải xuống (d) file? (u/d): ")
@@ -58,10 +134,10 @@ def main():
             send_file(filename)
         elif action.lower() == 'd':
             filename = input("Nhập tên file cần tải xuống: ")
-            # Implement download function here
-            pass
+            download_file(filename)
         else:
             print("Lựa chọn không hợp lệ.")
 
 if __name__ == "__main__":
     main()
+
