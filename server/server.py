@@ -12,8 +12,18 @@ def receive_data(client_socket):
     if not data_len_bytes:
         return None
     data_len = struct.unpack('!I', data_len_bytes)[0]
-    data = client_socket.recv(data_len)
+    data = b''
+    while len(data) < data_len:
+        packet = client_socket.recv(data_len - len(data))
+        if not packet:
+            return None
+        data += packet
     return data
+
+def send_data(client_socket, data):
+    data_len = len(data)
+    client_socket.sendall(struct.pack('!I', data_len))
+    client_socket.sendall(data)
 
 def receive_chunk(client_socket, chunk_num):
     try:
@@ -27,6 +37,14 @@ def receive_chunk(client_socket, chunk_num):
     except Exception as e:
         print(f"Error receiving chunk {chunk_num}: {e}")
         return None
+
+def send_chunk(client_socket, chunk_num, chunk_data, lock):
+    try:
+        with lock:
+            send_data(client_socket, chunk_data)
+        print(f"Chunk {chunk_num} sent to client successfully.")
+    except Exception as e:
+        print(f"Error sending chunk {chunk_num}: {e}")
 
 def receive_file(client_socket, filename, filesize):
     try:
@@ -42,64 +60,47 @@ def receive_file(client_socket, filename, filesize):
     except Exception as e:
         print(f"Error receiving file {filename}: {e}")
 
-def send_data(client_socket, data):
-    data_len = len(data)
-    client_socket.sendall(struct.pack('!I', data_len))
-    client_socket.sendall(data)
-
-def send_chunk(client_socket, chunk_data):
-    try:
-        send_data(client_socket, chunk_data)
-    except Exception as e:
-        print(f"Error sending chunk: {e}")
-
 def send_file(client_socket, filename):
     try:
         filesize = os.path.getsize(filename)
+        send_data(client_socket, str(filesize).encode())
+
+        threads = []
+        lock = threading.Lock()
         with open(filename, 'rb') as f:
+            chunk_num = 0
             while True:
                 chunk_data = f.read(BUFFER_SIZE)
                 if not chunk_data:
                     break
-                send_chunk(client_socket, chunk_data)
+                thread = threading.Thread(target=send_chunk, args=(client_socket, chunk_num, chunk_data, lock))
+                thread.start()
+                threads.append(thread)
+                chunk_num += 1
+
+        for thread in threads:
+            thread.join()
+        
+        print(f"File {filename} sent to client successfully.")
     except Exception as e:
-        print(f"Error sending file: {e}")
+        print(f"Error sending file {filename}: {e}")
 
 def handle_client(client_socket):
     try:
-        # Receive client's request (upload or download)
         action = receive_data(client_socket).decode()
         if action == 'u':
-            # Upload file from client to server
             filename = receive_data(client_socket).decode()
             filesize = int(receive_data(client_socket).decode())
-            print(f"Received request to upload file: {filename}, size: {filesize} bytes")
-
+            print(f"Received request to upload file: {filename}, size: {filesize}")
             receive_file(client_socket, filename, filesize)
-
         elif action == 'd':
-            # Download file from server to client
             filename = receive_data(client_socket).decode()
             print(f"Received request to download file: {filename}")
-
-            send_data(client_socket, filename.encode())
-
-            # Ensure file exists
-            if os.path.exists(filename):
-                send_data(client_socket, str(os.path.getsize(filename)).encode())
-                send_file(client_socket, filename)
-            else:
-                print(f"File {filename} does not exist.")
-                send_data(client_socket, b'0')  # Send 0 as file size to indicate file not found
-
-        else:
-            print("Invalid action received from client.")
-
+            send_file(client_socket, filename)
     except Exception as e:
         print(f"Error handling client: {e}")
     finally:
         client_socket.close()
-
 
 def start_server():
     server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
