@@ -40,7 +40,7 @@ def send_chunk(client_socket, chunk_num, chunk_data, lock):
     except Exception as e:
         print(f"Error sending chunk {chunk_num}: {e}")
 
-def receive_chunk(client_socket, chunk_num):
+def receive_chunk(client_socket, chunk_num, lock):
     retries = 3  # Số lần thử lại tối đa
     while retries > 0:
         try:
@@ -70,8 +70,9 @@ def receive_file(client_socket, filename, filesize):
     try:
         with open(filename, 'wb') as f:
             chunk_num = 0
+            lock = threading.Lock()
             while True:
-                chunk_data = receive_chunk(client_socket, chunk_num)
+                chunk_data = receive_chunk(client_socket, chunk_num, lock)
                 if not chunk_data:
                     break
                 f.write(chunk_data)
