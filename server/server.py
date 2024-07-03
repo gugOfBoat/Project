@@ -2,8 +2,9 @@ import socket
 import struct
 import os
 import threading
+import hashlib
 
-SERVER_IP = '192.168.100.100'
+SERVER_IP = socket.gethostbyname(socket.gethostname())
 SERVER_PORT = 5000
 BUFFER_SIZE = 1024 * 1024 
 
@@ -25,26 +26,45 @@ def send_data(client_socket, data):
     client_socket.sendall(struct.pack('!I', data_len))
     client_socket.sendall(data)
 
-def receive_chunk(client_socket, chunk_num):
-    try:
-        chunk_data = receive_data(client_socket)
-        if chunk_data:
-            print(f"Received chunk {chunk_num} from client.")
-            return chunk_data
-        else:
-            print(f"Failed to receive chunk {chunk_num} from client.")
-            return None
-    except Exception as e:
-        print(f"Error receiving chunk {chunk_num}: {e}")
-        return None
+def calculate_checksum(data):
+    checksum = hashlib.sha256(data).hexdigest()
+    return checksum
 
 def send_chunk(client_socket, chunk_num, chunk_data, lock):
     try:
+        checksum = calculate_checksum(chunk_data)
+        data_with_checksum = checksum.encode() + b'::' + chunk_data
         with lock:
-            send_data(client_socket, chunk_data)
+            send_data(client_socket, data_with_checksum)
         print(f"Chunk {chunk_num} sent to client successfully.")
     except Exception as e:
         print(f"Error sending chunk {chunk_num}: {e}")
+
+def receive_chunk(client_socket, chunk_num):
+    retries = 3  # Số lần thử lại tối đa
+    while retries > 0:
+        try:
+            data_with_checksum = receive_data(client_socket)
+            if data_with_checksum:
+                received_checksum, chunk_data = data_with_checksum.split(b'::', 1)
+                calculated_checksum = calculate_checksum(chunk_data)
+                if received_checksum.decode() == calculated_checksum:
+                    print(f"Received chunk {chunk_num} from client.")
+                    return chunk_data
+                else:
+                    print(f"Checksum mismatch for chunk {chunk_num}.")
+                    # Send chunk again upon request (NACK received)
+                    if receive_data(client_socket) == b'NACK':
+                        send_chunk(client_socket, chunk_num, chunk_data, lock)
+            else:
+                print(f"Failed to receive chunk {chunk_num} from client.")
+        except Exception as e:
+            print(f"Error receiving chunk {chunk_num}: {e}")
+        
+        retries -= 1
+
+    print(f"Failed to receive chunk {chunk_num} after {retries} retries.")
+    return None
 
 def receive_file(client_socket, filename, filesize):
     try:
