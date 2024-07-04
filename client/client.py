@@ -50,9 +50,9 @@ class Client:
         while retries > 0:
             try:
                 checksum = self.calculate_checksum(chunk_data)
-                data_with_checksum = checksum.encode() + b'::' + chunk_data
+                data_with_checksum_chunk_num = checksum.encode() + b'::' + str(chunk_num).encode() +  b'::' + chunk_data
                 with self.lock:
-                    self.send_data(data_with_checksum)
+                    self.send_data(data_with_checksum_chunk_num)
                     ack = self.receive_data()
                     if ack.decode() == "ACK":
                         logging.info(f"Chunk {chunk_num} uploaded successfully.")
@@ -63,29 +63,27 @@ class Client:
         logging.error(f"Failed to upload chunk {chunk_num} after {retries} retries.")
         return False
 
-    def receive_chunk(self, chunk_num):
+    def receive_chunk(self):
         retries = 3  # Số lần thử lại tối đa
         while retries > 0:
             try:
                 data_with_checksum = self.receive_data()
                 if data_with_checksum:
-                    received_checksum, chunk_data = data_with_checksum.split(b'::', 1)
+                    received_checksum, chunk_num, chunk_data = data_with_checksum.split(b'::', 2)
                     calculated_checksum = self.calculate_checksum(chunk_data)
                     if received_checksum.decode() == calculated_checksum:
                         self.send_data(b"ACK")
-                        logging.info(f"Received chunk {chunk_num} from server successfully.")
-                        return chunk_data
+                        logging.info(f"Chunk {chunk_num.decode()} received successfully.")
+                        return chunk_num, chunk_data
             except Exception as e:
-                logging.error(f"Error receiving chunk {chunk_num}: {e}")
+                logging.error(f"Error receiving chunk: {e}")
                 retries -= 1
-        logging.error(f"Failed to receive chunk {chunk_num} after {retries} retries.")
+        logging.error(f"Failed to receive chunk after {retries} retries.")
         return None
 
     def upload_file(self, filepath):
-        file_size = os.path.getsize(filepath)
         self.send_data(b'u')
         self.send_data(os.path.basename(filepath).encode())
-        self.send_data(str(file_size).encode())
 
         threads = []
         with open(filepath, 'rb') as f:
@@ -93,6 +91,9 @@ class Client:
             while True:
                 chunk_data = f.read(BUFFER_SIZE)
                 if not chunk_data:
+                    thread = threading.Thread(target=self.send_chunk, args=(chunk_num, "".encode()))
+                    thread.start()
+                    threads.append(thread)
                     break
                 thread = threading.Thread(target=self.send_chunk, args=(chunk_num, chunk_data))
                 thread.start()
@@ -108,21 +109,20 @@ class Client:
         self.send_data(b'd')
         self.send_data(filename.encode())
 
-        threads = []
         file_chunks = []
-        chunk_num = 0
         while True:
-            chunk_data = self.receive_chunk(chunk_num)
+            chunk_num, chunk_data = self.receive_chunk()
             if not chunk_data:
                 break
-            file_chunks.append((chunk_num, chunk_data))
-            chunk_num += 1
+            file_chunks.append((int(chunk_num.decode()), chunk_data))
 
-        with open(destination, 'wb') as f:
+        filepath = os.path.join(destination, filename)
+        with open(filepath, 'wb') as f:
             for chunk_num, chunk_data in sorted(file_chunks):
                 f.write(chunk_data)
         
-        logging.info(f"File {filename} downloaded successfully to {destination}.")
+        logging.info(f"File {filename} received successfully.")
+
 
 if __name__ == "__main__":
     client = Client(SERVER_IP, SERVER_PORT)
@@ -130,11 +130,12 @@ if __name__ == "__main__":
 
     action = input("Bạn muốn tải lên (u) hay tải xuống (d) file? (u/d): ").strip()
     if action == 'u':
+        
         filepath = input("Nhập tên file cần tải lên: ").strip()
         client.upload_file(filepath)
     elif action == 'd':
         filename = input("Nhập tên file cần tải xuống: ").strip()
-        destination = input("Nhập path lưu file tải xuống").strip()
+        destination = input("Nhập path lưu file tải xuống: ").strip()
         client.download_file(filename, destination)
 
     client.close()
