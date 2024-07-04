@@ -3,142 +3,144 @@ import struct
 import os
 import threading
 import hashlib
+import logging
 
 SERVER_IP = socket.gethostbyname(socket.gethostname())
 SERVER_PORT = 5000
-BUFFER_SIZE = 1024 * 1024 
+BUFFER_SIZE = 1024 * 1024
 
-def receive_data(client_socket):
-    data_len_bytes = client_socket.recv(4)
-    if not data_len_bytes:
-        return None
-    data_len = struct.unpack('!I', data_len_bytes)[0]
-    data = b''
-    while len(data) < data_len:
-        packet = client_socket.recv(data_len - len(data))
-        if not packet:
-            return None
-        data += packet
-    return data
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-def send_data(client_socket, data):
-    data_len = len(data)
-    client_socket.sendall(struct.pack('!I', data_len))
-    client_socket.sendall(data)
+class Server:
+    def __init__(self, server_ip, server_port):
+        self.server_ip = server_ip
+        self.server_port = server_port
+        self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.lock = threading.Lock()
 
-def calculate_checksum(data):
-    checksum = hashlib.sha256(data).hexdigest()
-    return checksum
+    def start(self):
+        self.server_socket.bind((self.server_ip, self.server_port))
+        self.server_socket.listen(5)
+        logging.info(f"Server listening on {self.server_ip}:{self.server_port}")
 
-def send_chunk(client_socket, chunk_num, chunk_data, lock):
-    try:
-        checksum = calculate_checksum(chunk_data)
-        data_with_checksum = checksum.encode() + b'::' + chunk_data
-        with lock:
-            send_data(client_socket, data_with_checksum)
-        print(f"Chunk {chunk_num} sent to client successfully.")
-    except Exception as e:
-        print(f"Error sending chunk {chunk_num}: {e}")
-
-def receive_chunk(client_socket, chunk_num, lock):
-    retries = 3  # Số lần thử lại tối đa
-    while retries > 0:
         try:
-            data_with_checksum = receive_data(client_socket)
-            if data_with_checksum:
-                received_checksum, chunk_data = data_with_checksum.split(b'::', 1)
-                calculated_checksum = calculate_checksum(chunk_data)
-                if received_checksum.decode() == calculated_checksum:
-                    print(f"Received chunk {chunk_num} from client.")
-                    return chunk_data
-                else:
-                    print(f"Checksum mismatch for chunk {chunk_num}.")
-                    # Send chunk again upon request (NACK received)
-                    if receive_data(client_socket) == b'NACK':
-                        send_chunk(client_socket, chunk_num, chunk_data, lock)
-            else:
-                print(f"Failed to receive chunk {chunk_num} from client.")
+            while True:
+                client_socket, address = self.server_socket.accept()
+                logging.info(f"Accepted connection from {address}")
+                client_handler = threading.Thread(target=self.handle_client, args=(client_socket,))
+                client_handler.start()
         except Exception as e:
-            print(f"Error receiving chunk {chunk_num}: {e}")
-        
-        retries -= 1
+            logging.error(f"Error accepting connections: {e}")
+        finally:
+            self.server_socket.close()
 
-    print(f"Failed to receive chunk {chunk_num} after {retries} retries.")
-    return None
+    def send_data(self, client_socket, data):
+        data_len = len(data)
+        client_socket.sendall(struct.pack('!I', data_len))
+        client_socket.sendall(data)
 
-def receive_file(client_socket, filename, filesize):
-    try:
+    def receive_data(self, client_socket):
+        data_len_bytes = client_socket.recv(4)
+        if not data_len_bytes:
+            return None
+        data_len = struct.unpack('!I', data_len_bytes)[0]
+        data = b''
+        while len(data) < data_len:
+            packet = client_socket.recv(data_len - len(data))
+            if not packet:
+                return None
+            data += packet
+        return data
+
+    def calculate_checksum(self, data):
+        return hashlib.sha256(data).hexdigest()
+
+    def send_chunk(self, client_socket, chunk_num, chunk_data):
+        retries = 3  # Số lần thử lại tối đa
+        while retries > 0:
+            try:
+                checksum = self.calculate_checksum(chunk_data)
+                data_with_checksum = checksum.encode() + b'::' + chunk_data
+                with self.lock:
+                    self.send_data(client_socket, data_with_checksum)
+                    ack = self.receive_data(client_socket)
+                    if ack.decode() == "ACK":
+                        logging.info(f"Chunk {chunk_num} sent to client successfully.")
+                        return True  # Thành công, không cần thử lại nữa
+            except Exception as e:
+                logging.error(f"Error sending chunk {chunk_num}: {e}")
+                retries -= 1
+        logging.error(f"Failed to send chunk {chunk_num} after {retries} retries.")
+        return False
+
+    def receive_chunk(self, client_socket, chunk_num):
+        retries = 3  # Số lần thử lại tối đa
+        while retries > 0:
+            try:
+                data_with_checksum = self.receive_data(client_socket)
+                if data_with_checksum:
+                    received_checksum, chunk_data = data_with_checksum.split(b'::', 1)
+                    calculated_checksum = self.calculate_checksum(chunk_data)
+                    if received_checksum.decode() == calculated_checksum:
+                        self.send_data(client_socket, b"ACK")
+                        logging.info(f"Chunk {chunk_num} received successfully.")
+                        return chunk_data
+            except Exception as e:
+                logging.error(f"Error receiving chunk {chunk_num}: {e}")
+                retries -= 1
+        logging.error(f"Failed to receive chunk {chunk_num} after {retries} retries.")
+        return None
+
+    def receive_file(self, client_socket, filename, filesize):
         with open(filename, 'wb') as f:
             chunk_num = 0
-            lock = threading.Lock()
-            while True:
-                chunk_data = receive_chunk(client_socket, chunk_num, lock)
-                if not chunk_data:
+            while filesize > 0:
+                chunk_data = self.receive_chunk(client_socket, chunk_num)
+                if chunk_data:
+                    f.write(chunk_data)
+                    filesize -= len(chunk_data)
+                    chunk_num += 1
+                else:
                     break
-                f.write(chunk_data)
-                chunk_num += 1
-            print(f"File {filename} received and saved.")
-    except Exception as e:
-        print(f"Error receiving file {filename}: {e}")
-
-def send_file(client_socket, filename):
-    try:
-        filesize = os.path.getsize(filename)
-        send_data(client_socket, str(filesize).encode())
-
-        threads = []
-        lock = threading.Lock()
-        with open(filename, 'rb') as f:
-            chunk_num = 0
-            while True:
-                chunk_data = f.read(BUFFER_SIZE)
-                if not chunk_data:
-                    break
-                thread = threading.Thread(target=send_chunk, args=(client_socket, chunk_num, chunk_data, lock))
-                thread.start()
-                threads.append(thread)
-                chunk_num += 1
-
-        for thread in threads:
-            thread.join()
         
-        print(f"File {filename} sent to client successfully.")
-    except Exception as e:
-        print(f"Error sending file {filename}: {e}")
+        logging.info(f"File {filename} received successfully.")
 
-def handle_client(client_socket):
-    try:
-        action = receive_data(client_socket).decode()
-        if action == 'u':
-            filename = receive_data(client_socket).decode()
-            filesize = int(receive_data(client_socket).decode())
-            print(f"Received request to upload file: {filename}, size: {filesize}")
-            receive_file(client_socket, filename, filesize)
-        elif action == 'd':
-            filename = receive_data(client_socket).decode()
-            print(f"Received request to download file: {filename}")
-            send_file(client_socket, filename)
-    except Exception as e:
-        print(f"Error handling client: {e}")
-    finally:
-        client_socket.close()
+    def send_file(self, client_socket, filename):
+        try:
+            with open(filename, 'rb') as f:
+                chunk_num = 0
+                while True:
+                    chunk_data = f.read(BUFFER_SIZE)
+                    if not chunk_data:
+                        break
+                    thread = threading.Thread(target=self.send_chunk, args=(client_socket, chunk_num, chunk_data))
+                    thread.start()
+                    chunk_num += 1
+            logging.info(f"File {filename} sent successfully.")
+        except FileNotFoundError:
+            logging.error(f"File {filename} not found.")
+            self.send_data(client_socket, b'File not found.')
 
-def start_server():
-    server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    server_socket.bind((SERVER_IP, SERVER_PORT))
-    server_socket.listen(5)
-    print(f"Server listening on {SERVER_IP}:{SERVER_PORT}")
+    def handle_client(self, client_socket):
+        try:
+            while True:
+                action = self.receive_data(client_socket)
+                if action is None:
+                    break
 
-    try:
-        while True:
-            client_socket, address = server_socket.accept()
-            print(f"Accepted connection from {address}")
-            client_handler = threading.Thread(target=handle_client, args=(client_socket,))
-            client_handler.start()
-    except Exception as e:
-        print(f"Error accepting connections: {e}")
-    finally:
-        server_socket.close()
+                if action == b'u':
+                    filename = self.receive_data(client_socket).decode()
+                    filesize = int(self.receive_data(client_socket).decode())
+                    self.receive_file(client_socket, filename, filesize)
+                elif action == b'd':
+                    filename = self.receive_data(client_socket).decode()
+                    self.send_file(client_socket, filename)
+        except Exception as e:
+            logging.error(f"Error handling client: {e}")
+        finally:
+            client_socket.close()
+            logging.info("Client connection closed.")
 
 if __name__ == "__main__":
-    start_server()
+    server = Server(SERVER_IP, SERVER_PORT)
+    server.start()
