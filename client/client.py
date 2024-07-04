@@ -4,6 +4,7 @@ import os
 import threading
 import hashlib
 import logging
+import time
 
 SERVER_IP = socket.gethostbyname(socket.gethostname())
 SERVER_PORT = 5000
@@ -91,6 +92,7 @@ class Client:
             while True:
                 chunk_data = f.read(BUFFER_SIZE)
                 if not chunk_data:
+                    time.sleep(0.2)
                     thread = threading.Thread(target=self.send_chunk, args=(chunk_num, "".encode()))
                     thread.start()
                     threads.append(thread)
