@@ -97,6 +97,7 @@ class Client:
                     thread.start()
                     threads.append(thread)
                     break
+                time.sleep(0.5)
                 thread = threading.Thread(target=self.send_chunk, args=(chunk_num, chunk_data))
                 thread.start()
                 threads.append(thread)
@@ -105,7 +106,7 @@ class Client:
         for thread in threads:
             thread.join()
         
-        logging.info(f"File {filepath} uploaded successfully.")
+        logging.info(f"File {os.path.basename(filepath)} uploaded successfully.")
 
     def download_file(self, filename, destination):
         self.send_data(b'd')
@@ -117,27 +118,43 @@ class Client:
             if not chunk_data:
                 break
             file_chunks.append((int(chunk_num.decode()), chunk_data))
-
+        
+        
         filepath = os.path.join(destination, filename)
         with open(filepath, 'wb') as f:
             for chunk_num, chunk_data in sorted(file_chunks):
                 f.write(chunk_data)
         
-        logging.info(f"File {filename} received successfully.")
+        logging.info(f"File {os.path.basename(filename)} received successfully.")
+
+    def list(self):
+        self.send_data(b'r')
+        no_files = self.receive_data()
+        for i in range(0, no_files):
+            file_name, file_size = self.receive_data().split(b'::', 1)
+            print(f"{file_name}: {file_size}")
+
 
 
 if __name__ == "__main__":
     client = Client(SERVER_IP, SERVER_PORT)
-    client.connect()
+    
+    while True:
+        action = input("Bạn muốn tải lên (u) hay tải xuống (d) file? (u/d): ").strip()
+        if action == 'u':
+            client.connect()
+            filepath = input("Nhập tên file cần tải lên: ").strip()
+            client.upload_file(filepath)
+            client.close()
+        elif action == 'd':
+            client.connect()
+            filename = input("Nhập tên file cần tải xuống: ").strip()
+            destination = input("Nhập path lưu file tải xuống: ").strip()
+            client.download_file(filename, destination)
+            client.close()
+        elif action == 'l':
+            break
 
-    action = input("Bạn muốn tải lên (u) hay tải xuống (d) file? (u/d): ").strip()
-    if action == 'u':
-        
-        filepath = input("Nhập tên file cần tải lên: ").strip()
-        client.upload_file(filepath)
-    elif action == 'd':
-        filename = input("Nhập tên file cần tải xuống: ").strip()
-        destination = input("Nhập path lưu file tải xuống: ").strip()
-        client.download_file(filename, destination)
-
-    client.close()
+    # elif action == 'r':
+    #     client.list()
+    
