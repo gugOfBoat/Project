@@ -6,20 +6,29 @@ import hashlib
 import logging
 import time
 
-SERVER_IP = socket.gethostbyname(socket.gethostname())
+SERVER_IP = '26.207.74.96'
 SERVER_PORT = 5000
 BUFFER_SIZE = 1024 * 1024
+SERVER_FOLDER = "server"
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 class Server:
-    def __init__(self, server_ip, server_port):
+    def __init__(self, server_ip, server_port, server_folder):
         self.server_ip = server_ip
         self.server_port = server_port
         self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.lock = threading.Lock()
+        self.folder = server_folder
+        
 
     def start(self):
+        if not os.path.exists(self.folder):
+            os.makedirs(self.folder)
+            print(f"\"{self.folder}\" Created")
+        else:
+            print(f"\"{self.folder}\" Found")
+
         self.server_socket.bind((self.server_ip, self.server_port))
         self.server_socket.listen(5)
         logging.info(f"Server listening on {self.server_ip}:{self.server_port}")
@@ -101,11 +110,12 @@ class Server:
                 break
             file_chunks.append((int(chunk_num.decode()), chunk_data))
 
+        filename = os.path.join(self.folder, filename)
         with open(filename, 'wb') as f:
             for chunk_num, chunk_data in sorted(file_chunks):
                 f.write(chunk_data)
         
-        logging.info(f"File {filename} received successfully.")
+        logging.info(f"File {os.path.basename(filename)} received successfully.")
 
     def send_file(self, client_socket, filename):
         try:
@@ -128,10 +138,19 @@ class Server:
             for thread in threads:
                 thread.join()
 
-            logging.info(f"File {filename} sent successfully.")
+            logging.info(f"File {os.path.basename(filename)} sent successfully.")
         except FileNotFoundError:
-            logging.error(f"File {filename} not found.")
+            logging.error(f"File {os.path.basename(filename)} not found.")
             self.send_data(client_socket, b'File not found.')
+
+    # def list(self, client_socket, folder):
+    #     no_files = len([name for name in os.listdir(folder) if os.path.isfile(name)])
+    #     self.send_data(client_socket, no_files)
+
+    #     for i in range(0, no_files):
+    #         send_data = file_name.encode() + b'::' + file_size.encode()
+    #         print(f"{file_name}: {file_size}")
+
 
     def handle_client(self, client_socket):
         try:
@@ -145,7 +164,10 @@ class Server:
                     self.receive_file(client_socket, filename)
                 elif action == b'd':
                     filename = self.receive_data(client_socket).decode()
+                    filename = os.path.join(self.folder, filename)
                     self.send_file(client_socket, filename)
+                elif action == b'r':
+                    self.send_files_info(client_socket)
         except Exception as e:
             logging.error(f"Error handling client: {e}")
         finally:
@@ -153,5 +175,5 @@ class Server:
             logging.info("Client connection closed.")
 
 if __name__ == "__main__":
-    server = Server(SERVER_IP, SERVER_PORT)
+    server = Server(SERVER_IP, SERVER_PORT, SERVER_FOLDER)
     server.start()
