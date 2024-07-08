@@ -143,13 +143,15 @@ class Server:
             logging.error(f"File {os.path.basename(filename)} not found.")
             self.send_data(client_socket, b'File not found.')
 
-    # def list(self, client_socket, folder):
-    #     no_files = len([name for name in os.listdir(folder) if os.path.isfile(name)])
-    #     self.send_data(client_socket, no_files)
+    def list(self, client_socket):
+        no_files = len([name for name in os.listdir(self.folder) if os.path.isfile(os.path.join(self.folder,name))])
+        self.send_data(client_socket, str(no_files).encode())
 
-    #     for i in range(0, no_files):
-    #         send_data = file_name.encode() + b'::' + file_size.encode()
-    #         print(f"{file_name}: {file_size}")
+        for filename in os.listdir(self.folder):
+            filepath = os.path.join(self.folder, filename)
+            file_size = os.path.getsize(filepath)
+            data = filename.encode() + b'::' + str(file_size).encode()
+            self.send_data(client_socket, data)
 
 
     def handle_client(self, client_socket):
@@ -167,7 +169,7 @@ class Server:
                     filename = os.path.join(self.folder, filename)
                     self.send_file(client_socket, filename)
                 elif action == b'r':
-                    self.send_files_info(client_socket)
+                    self.list(client_socket)
         except Exception as e:
             logging.error(f"Error handling client: {e}")
         finally:
