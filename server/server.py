@@ -5,10 +5,12 @@ import threading
 import hashlib
 import logging
 import time
+import time
 
-SERVER_IP = socket.gethostbyname(socket.gethostname())
+SERVER_IP = '26.207.74.96'
 SERVER_PORT = 5000
 BUFFER_SIZE = 1024 * 1024
+SERVER_FOLDER = "server"
 SERVER_FOLDER = "server"
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -143,17 +145,6 @@ class Server:
             logging.error(f"File {os.path.basename(filename)} not found.")
             self.send_data(client_socket, b'File not found.')
 
-    def list(self, client_socket):
-        no_files = len([name for name in os.listdir(self.folder) if os.path.isfile(os.path.join(self.folder,name))])
-        self.send_data(client_socket, str(no_files).encode())
-
-        for filename in os.listdir(self.folder):
-            filepath = os.path.join(self.folder, filename)
-            file_size = os.path.getsize(filepath)
-            data = filename.encode() + b'::' + str(file_size).encode()
-            self.send_data(client_socket, data)
-
-
     def handle_client(self, client_socket):
         try:
             while True:
@@ -168,8 +159,6 @@ class Server:
                     filename = self.receive_data(client_socket).decode()
                     filename = os.path.join(self.folder, filename)
                     self.send_file(client_socket, filename)
-                elif action == b'r':
-                    self.list(client_socket)
         except Exception as e:
             logging.error(f"Error handling client: {e}")
         finally:
