@@ -128,33 +128,33 @@ class Client:
         logging.info(f"File {os.path.basename(filename)} received successfully.")
 
     def list(self):
+        list_file = []
         self.send_data(b'r')
         no_files = self.receive_data()
-        for i in range(0, no_files):
+        for i in range(0, int(no_files.decode())):
             file_name, file_size = self.receive_data().split(b'::', 1)
-            print(f"{file_name}: {file_size}")
+            list_file.append((file_name.decode(), file_size.decode()))
+        return list_file
 
 
 
 if __name__ == "__main__":
     client = Client(SERVER_IP, SERVER_PORT)
+    client.connect()
     
     while True:
         action = input("Bạn muốn tải lên (u) hay tải xuống (d) file? (u/d): ").strip()
         if action == 'u':
-            client.connect()
             filepath = input("Nhập tên file cần tải lên: ").strip()
             client.upload_file(filepath)
-            client.close()
         elif action == 'd':
-            client.connect()
             filename = input("Nhập tên file cần tải xuống: ").strip()
             destination = input("Nhập path lưu file tải xuống: ").strip()
             client.download_file(filename, destination)
-            client.close()
         elif action == 'l':
             break
+        elif action == 'r':
+            client.list()
 
-    # elif action == 'r':
-    #     client.list()
-    
+    client.close()
+
