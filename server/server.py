@@ -159,6 +159,8 @@ class Server:
                     filename = self.receive_data(client_socket).decode()
                     filename = os.path.join(self.folder, filename)
                     self.send_file(client_socket, filename)
+                elif action == b'r':
+                    self.send_files_info(client_socket)
         except Exception as e:
             logging.error(f"Error handling client: {e}")
         finally:
