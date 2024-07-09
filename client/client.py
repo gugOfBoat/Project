@@ -8,11 +8,12 @@ import time
 
 SERVER_IP = socket.gethostbyname(socket.gethostname())
 SERVER_PORT = 5000
-BUFFER_SIZE = 1024 * 1024
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 class Client:
+    BUFFER_SIZE = 1024 * 1024
+
     def __init__(self, server_ip, server_port):
         self.server_ip = server_ip
         self.server_port = server_port
@@ -51,7 +52,7 @@ class Client:
         while retries > 0:
             try:
                 checksum = self.calculate_checksum(chunk_data)
-                data_with_checksum_chunk_num = checksum.encode() + b'::' + str(chunk_num).encode() +  b'::' + chunk_data
+                data_with_checksum_chunk_num = checksum.encode() + b'::' + str(chunk_num).encode() + b'::' + chunk_data
                 with self.lock:
                     self.send_data(data_with_checksum_chunk_num)
                     ack = self.receive_data()
@@ -90,7 +91,7 @@ class Client:
         with open(filepath, 'rb') as f:
             chunk_num = 0
             while True:
-                chunk_data = f.read(BUFFER_SIZE)
+                chunk_data = f.read(self.BUFFER_SIZE)
                 if not chunk_data:
                     time.sleep(0.2)
                     thread = threading.Thread(target=self.send_chunk, args=(chunk_num, "".encode()))
@@ -105,7 +106,7 @@ class Client:
 
         for thread in threads:
             thread.join()
-        
+
         logging.info(f"File {os.path.basename(filepath)} uploaded successfully.")
 
     def download_file(self, filename, destination):
@@ -118,13 +119,12 @@ class Client:
             if not chunk_data:
                 break
             file_chunks.append((int(chunk_num.decode()), chunk_data))
-        
-        
+
         filepath = os.path.join(destination, filename)
         with open(filepath, 'wb') as f:
             for chunk_num, chunk_data in sorted(file_chunks):
                 f.write(chunk_data)
-        
+
         logging.info(f"File {os.path.basename(filename)} received successfully.")
 
     def list(self):
@@ -136,14 +136,21 @@ class Client:
             list_file.append((file_name.decode(), file_size.decode()))
         return list_file
 
-
+    def delete_file(self, filename):
+        self.send_data(b'x')
+        self.send_data(filename.encode())
+        response = self.receive_data()
+        if response.decode() == "success":
+            logging.info(f"Deleted file: {filename}")
+        else:
+            logging.error(f"Failed to delete file: {filename}")
 
 if __name__ == "__main__":
     client = Client(SERVER_IP, SERVER_PORT)
     client.connect()
-    
+
     while True:
-        action = input("Bạn muốn tải lên (u) hay tải xuống (d) file? (u/d): ").strip()
+        action = input("Bạn muốn tải lên (u), tải xuống (d), liệt kê (r) hay xóa (x) file? (u/d/r/x): ").strip()
         if action == 'u':
             filepath = input("Nhập tên file cần tải lên: ").strip()
             client.upload_file(filepath)
@@ -151,10 +158,14 @@ if __name__ == "__main__":
             filename = input("Nhập tên file cần tải xuống: ").strip()
             destination = input("Nhập path lưu file tải xuống: ").strip()
             client.download_file(filename, destination)
+        elif action == 'r':
+            files = client.list()
+            for file in files:
+                print(f"{file[0]}: {file[1]} bytes")
+        elif action == 'x':
+            filename = input("Nhập tên file cần xóa: ").strip()
+            client.delete_file(filename)
         elif action == 'l':
             break
-        elif action == 'r':
-            client.list()
 
     client.close()
-
