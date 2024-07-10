@@ -117,13 +117,17 @@ class Client:
         self.send_data(b'd')
         self.send_data(filename.encode())
         filesize = self.receive_data().decode()
-        size_downloaded = 0
+        if ch == True:
+            share_queue.put(int(filesize))
 
         file_chunks = []
         while True:
             chunk_num, chunk_data = self.receive_chunk()
             if not chunk_data:
                 break
+            if ch == True:
+                share_queue.put(len(chunk_data))
+            time.sleep(0.5)
             file_chunks.append((int(chunk_num.decode()), chunk_data))
 
 
