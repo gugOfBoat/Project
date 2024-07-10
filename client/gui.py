@@ -2,7 +2,7 @@ import os
 from customtkinter import *
 import client
 import socket
-from PIL import Image, ImageTk
+from PIL import Image, ImageGrab, ImageEnhance
 from tkinter import filedialog, messagebox
 import queue
 import threading
@@ -10,6 +10,17 @@ import time
 
 SERVER_IP = socket.gethostbyname(socket.gethostname())
 SERVER_PORT = 5000
+
+def take_screenshot():
+    x0 = app.winfo_rootx()
+    y0 = app.winfo_rooty()
+    x1 = x0 + app.winfo_width()
+    y1 = y0 + app.winfo_height()
+    img = ImageGrab.grab().crop((x0, y0, x1, y1))
+    enhancer = ImageEnhance.Brightness(img)
+    # to reduce brightness by 50%, use factor 0.5
+    output = enhancer.enhance(0.5) 
+    output.save("client/dark.png")
 
 def moved(share_queue,  client1, size_downloaded, filesize):
     try:
@@ -47,8 +58,13 @@ def upload(client1):
             result = messagebox.askyesno("File Exists", f"The file '{filename}' already exists on the server. Do you want to overwrite it?")
             if not result:
                 return  # Cancel upload
+            
+        time.sleep(0.2)
+        take_screenshot()
         picture_frame.place(x=161.75, y=86.48)
-
+        img_grey = CTkImage(dark_image=Image.open('client/dark.png'), light_image=Image.open('client/dark.png'), size=(750, 500))
+        grey.configure(image=img_grey)
+        grey.place(x=0, y=0)
         share_queue =queue.Queue()
         size_downloaded = 0
         filesize = os.path.getsize(filepath)
@@ -103,6 +119,9 @@ def refresh(client1, frame):
     text_per.configure(text ="0%", bg_color="#0A1721", text_color="#F7FDFF")
     text_per.update()
     text_done.place_forget()
+    grey.place(x=-750, y=0)
+    img_grey = CTkImage(dark_image=Image.open('client/paw.png'), light_image=Image.open('client/paw.png'), size=(750, 500))
+    grey.configure(image=img_grey)
 
     # Fetch the list of files from client1
     files = client1.list()
@@ -203,6 +222,12 @@ def on_select(action, file_name, client1):
                 result = messagebox.askyesno("File Exists", f"The file '{file_name}' already exists in the selected directory. Do you want to overwrite it?")
                 if not result:
                     return  # Cancel download
+            time.sleep(0.2)
+            take_screenshot()
+            picture_frame.place(x=161.75, y=86.48)
+            img_grey = CTkImage(dark_image=Image.open('client/dark.png'), light_image=Image.open('client/dark.png'), size=(750, 500))
+            grey.configure(image=img_grey)
+            grey.place(x=0, y=0)
             picture_frame.place(x=161.75, y=86.48)
             share_queue = queue.Queue()
             size_downloaded = 0
@@ -318,11 +343,15 @@ def show_main_app(client1):
     global picture_label
     global loading
     global text_done
+    global grey
+    img_grey = CTkImage(dark_image=Image.open('client/paw.png'), light_image=Image.open('client/paw.png'), size=(750, 500))
+    grey = CTkLabel(master=app, image=img_grey, text="")
+    grey.place(x=-750, y=0)
     picture_frame = CTkFrame(master=app, height=290,  width=425.59, fg_color="#F7FDFF")
     loading = CTkImage(dark_image=Image.open("client/loading.png"), light_image=Image.open("client/loading.png"), size=(425.59,283))
     picture_label = CTkLabel(master=picture_frame, image=loading, text="", corner_radius=0)
     picture_label.place(x=0, y=0)
-    progress = CTkProgressBar(master=picture_frame, width=425.59, height=7, corner_radius=0,  fg_color="#F7FDFF", progress_color="#0A1721")
+    progress = CTkProgressBar(master=picture_frame, width=426, height=7, corner_radius=0,  fg_color="#F7FDFF", progress_color="#0A1721")
     progress.set(0.001)
     progress.place(x=0, y=283)
     text_per = CTkLabel(master=picture_frame, text="0%", font=('Archivo Black', 10, 'bold'), bg_color="#0A1721", height=10, width=20)
