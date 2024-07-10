@@ -6,6 +6,7 @@ import hashlib
 import logging
 import time
 
+
 SERVER_IP = socket.gethostbyname(socket.gethostname())
 SERVER_PORT = 5000
 BUFFER_SIZE = 1024 * 1024
@@ -117,6 +118,7 @@ class Server:
 
     def send_file(self, client_socket, filename):
         try:
+            self.send_data(client_socket, str(os.path.getsize(filename)).encode())
             threads = []
             with open(filename, 'rb') as f:
                 chunk_num = 0
@@ -178,6 +180,8 @@ class Server:
                 elif action == b'x':
                     filename = self.receive_data(client_socket).decode()
                     self.delete_file(client_socket, filename)
+                elif action == b'e':
+                    logging.info("Client connection closed.")
         except Exception as e:
             logging.error(f"Error handling client: {e}")
         finally:

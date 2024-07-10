@@ -5,6 +5,8 @@ import threading
 import hashlib
 import logging
 import time
+from customtkinter import *
+from tkinter import filedialog, messagebox
 
 SERVER_IP = socket.gethostbyname(socket.gethostname())
 SERVER_PORT = 5000
@@ -25,7 +27,7 @@ class Client:
 
     def close(self):
         self.client_socket.close()
-
+        
     def send_data(self, data):
         data_len = len(data)
         self.client_socket.sendall(struct.pack('!I', data_len))
@@ -47,7 +49,7 @@ class Client:
     def calculate_checksum(self, data):
         return hashlib.sha256(data).hexdigest()
 
-    def send_chunk(self, chunk_num, chunk_data):
+    def send_chunk(self, chunk_num, chunk_data, ch = False, share_queue = None):
         retries = 3  # Số lần thử lại tối đa
         while retries > 0:
             try:
@@ -57,6 +59,8 @@ class Client:
                     self.send_data(data_with_checksum_chunk_num)
                     ack = self.receive_data()
                     if ack.decode() == "ACK":
+                        if ch == True:
+                            share_queue.put(len(chunk_data))
                         logging.info(f"Chunk {chunk_num} uploaded successfully.")
                         return True  # Thành công, không cần thử lại nữa
             except Exception as e:
@@ -83,7 +87,7 @@ class Client:
         logging.error(f"Failed to receive chunk after {retries} retries.")
         return None
 
-    def upload_file(self, filepath):
+    def upload_file(self, filepath, ch = False, share_queue = None):
         self.send_data(b'u')
         self.send_data(os.path.basename(filepath).encode())
 
@@ -99,7 +103,7 @@ class Client:
                     threads.append(thread)
                     break
                 time.sleep(0.5)
-                thread = threading.Thread(target=self.send_chunk, args=(chunk_num, chunk_data))
+                thread = threading.Thread(target=self.send_chunk, args=(chunk_num, chunk_data, ch, share_queue))
                 thread.start()
                 threads.append(thread)
                 chunk_num += 1
@@ -109,9 +113,11 @@ class Client:
 
         logging.info(f"File {os.path.basename(filepath)} uploaded successfully.")
 
-    def download_file(self, filename, destination):
+    def download_file(self, filename, destination, ch = False, share_queue = None):
         self.send_data(b'd')
         self.send_data(filename.encode())
+        filesize = self.receive_data().decode()
+        size_downloaded = 0
 
         file_chunks = []
         while True:
@@ -119,6 +125,7 @@ class Client:
             if not chunk_data:
                 break
             file_chunks.append((int(chunk_num.decode()), chunk_data))
+
 
         filepath = os.path.join(destination, filename)
         with open(filepath, 'wb') as f:

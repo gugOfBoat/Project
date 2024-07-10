@@ -3,15 +3,58 @@ from customtkinter import *
 import client
 import socket
 from PIL import Image, ImageTk
+from tkinter import filedialog, messagebox
+import queue
+import threading
+import time
 
 SERVER_IP = socket.gethostbyname(socket.gethostname())
 SERVER_PORT = 5000
 
+def moved(share_queue,  client1, size_downloaded, filesize):
+    try:
+        lent=share_queue.get(block = False)
+    except queue.Empty:
+        lent = 0
+    else:
+        size_downloaded += lent
+        percentage = size_downloaded / filesize * 100
+        per = str(int(percentage))
+        text_per.configure(text = per + "%")
+        text_per.update()
+
+        progress.set(float(percentage) / 100)
+
+    if(size_downloaded < filesize):
+        app.after(10, lambda: moved(share_queue, client1, size_downloaded, filesize))
+    else:
+        done_img = CTkImage(dark_image=Image.open('client/done.png'), light_image=Image.open('client/done.png'), size=(425.59,283))
+        picture_label.configure(image=done_img)
+        text_per.configure(text ="100%", bg_color="#F99F3E")
+        text_per.update()
+
+        progress.set(1)
+        app.after(3000, lambda: refresh(client1, file_display_frame))
+
 def upload(client1):
     filepath = filedialog.askopenfilename()
     if filepath:
-        client1.upload_file(filepath)
-        refresh(client1, file_display_frame)
+        filename = os.path.basename(filepath)
+        existing_files = client1.list()
+        if any(f[0] == filename for f in existing_files):
+            result = messagebox.askyesno("File Exists", f"The file '{filename}' already exists on the server. Do you want to overwrite it?")
+            if not result:
+                return  # Cancel upload
+        picture_frame.place(x=161.75, y=86.48)
+        share_queue =queue.Queue()
+        size_downloaded = 0
+        filesize = os.path.getsize(filepath)
+        upload_thread = threading.Thread(target=client1.upload_file, args=(filepath, True, share_queue))
+        upload_thread.daemon = True
+        upload_thread.start()
+        app.after(10, lambda: moved(share_queue, client1, size_downloaded, filesize))
+        
+
 
 def get_file_icon(file_name):
     extension = os.path.splitext(file_name)[1].lower()
@@ -25,7 +68,7 @@ def get_file_icon(file_name):
         return Image.open('client/audio_icon.png')
     else:
         return Image.open('client/file_icon.png')
-    
+
 def cut_string(filename):
     if len(filename) > 35:
         return filename[0:35] + "..."
@@ -44,6 +87,7 @@ def filesize(filesize):
         track += 1
     return f"{pre} {byte_tail[track]}"
 
+
 def refresh(client1, frame):
     # Clear existing widgets
     for widget in frame.winfo_children():
@@ -51,6 +95,7 @@ def refresh(client1, frame):
     
     # Configure columns to expand evenly
     frame.grid_columnconfigure((0, 1, 2, 3), weight=1)
+    picture_frame.place_forget()
 
     # Fetch the list of files from client1
     files = client1.list()
@@ -58,7 +103,7 @@ def refresh(client1, frame):
     if not files:
         # If no files, show an upload button or a message
         cat_unknown = CTkImage(dark_image=Image.open('client/upload_new.png'), light_image=Image.open('client/upload_new.png'), size=(50, 50))
-        upload_button = CTkButton(master=frame, text="  UPLOAD  \nNEW FILE", height=150, width=150, fg_color="#DCEDF8", image=cat_unknown, compound='top', font=('Archivo Black', 16, 'bold'), text_color="#011320", command=lambda: upload(client1), corner_radius=8, hover_color="#B5CDDD")
+        upload_button = CTkButton(master=frame, text="  UPLOAD  \nNEW FILE", height=150, width=150, fg_color="#DCEDF8", image=cat_unknown, compound='top', font=('Archivo Black', 16, 'bold'), text_color="#011320", command=lambda: upload(client1, app), corner_radius=8, hover_color="#B5CDDD")
         upload_button.grid(row=0, column=0, padx=20, pady=20, sticky="w")
         return
 
@@ -72,7 +117,7 @@ def refresh(client1, frame):
         col = index % num_cols
         row = index // num_cols
 
-        # Get file icon (assuming you have a function `get_file_icon`)
+        # Get file icon (assuming you have a function get_file_icon)
         file_icon_image = get_file_icon(file_name)
         file_icon = CTkImage(light_image=file_icon_image, dark_image=file_icon_image, size=(50, 50))
 
@@ -142,35 +187,53 @@ def refresh(client1, frame):
             clear_frame.grid(row=row, column=col, padx=(10, 10), pady=20)
         col += 1
 
-
 def on_select(action, file_name, client1):
     if action == "DOWNLOAD":
         des = filedialog.askdirectory()
-        client1.download_file(file_name, des)
+        if des:
+            download_path = os.path.join(des, file_name)
+            if os.path.exists(download_path):
+                result = messagebox.askyesno("File Exists", f"The file '{file_name}' already exists in the selected directory. Do you want to overwrite it?")
+                if not result:
+                    return  # Cancel download
+            client1.download_file(file_name, des)
+            refresh(client1, file_display_frame)
     elif action == "DELETE":
-        client1.delete_file(file_name)
-        refresh(client1, file_display_frame)  # Assuming file_display_frame is your frame to refresh
+        if messagebox.askokcancel("Confirm Delete", f"Are you sure you want to delete the file '{file_name}'?"):
+            client1.delete_file(file_name)
+            refresh(client1, file_display_frame)
 
-def quit_app(app):
-    app.destroy()
+def quit_app(app, client1):
+    try:
+        client1.close()
+    except:
+        pass
+    show_initial_screen(app)
+    
+
 
 def start(app):
-    def confirm():
-        ip = ip_entry.get().strip()
-        port = port_entry.get().strip()
-        if ip and port:
-            try:
-                global SERVER_IP, SERVER_PORT
-                SERVER_IP = ip
-                SERVER_PORT = int(port)
-                client1 = client.Client(SERVER_IP, SERVER_PORT)
-                client1.connect()
-                print("Connected to the server")
-                show_main_app(client1)
-            except Exception as e:
-                print(f"Error: {e}") #Nếu sai thì nên làm gì?
-                label_incorrect.configure(text_color='#F36666')
+    show_initial_screen(app)
+
+def confirm():
+    ip = ip_entry.get().strip()
+    port = port_entry.get().strip()
+    if ip and port:
+        try:
+            global SERVER_IP, SERVER_PORT
+            SERVER_IP = ip
+            SERVER_PORT = int(port)
+            client1 = client.Client(SERVER_IP, SERVER_PORT)
+            client1.connect()
+            print("Connected to the server")
+            show_main_app(client1)
+        except Exception as e:
+            print(f"Error: {e}")
+            label_incorrect.configure(text_color='#F36666')
                 
+def show_initial_screen(app):
+    for widget in app.winfo_children():
+        widget.destroy()
 
     framel = CTkFrame(master=app, width=750, height=500, corner_radius=0)
     framel.place(x=0, y=0)
@@ -189,14 +252,17 @@ def start(app):
 
     ip_label = CTkLabel(master=framer, text="IP:", font=('Archivo', 12), text_color='#8C8C8C')
     ip_label.place(x=35, y=185)
+    global ip_entry
     ip_entry = CTkEntry(master=framer, height=27, width=180, font=('Archivo', 14), corner_radius=4, text_color="#011320", fg_color="#DCEDF8", border_color="#DCEDF8")
     ip_entry.place(x=35, y=210)
 
     port_label = CTkLabel(master=framer, text="PORT:", font=('Archivo', 12), text_color='#8C8C8C')
     port_label.place(x=35, y=245)
+    global port_entry
     port_entry = CTkEntry(master=framer, height=27, width=180, font=('Archivo', 14), corner_radius=4, text_color="#011320", fg_color="#DCEDF8", border_color="#DCEDF8")
     port_entry.place(x=35, y=270)
 
+    global label_incorrect
     label_incorrect = CTkLabel(master=framer, text="SERVER NOT FOUND. TRY AGAIN", font=('Archivo', 11, 'bold'), text_color='#F7FDFF')
     label_incorrect.place(x=35, y= 305)
 
@@ -225,14 +291,29 @@ def show_main_app(client1):
     question_button.place(x=10, y=400)
 
     quit_button_image = CTkImage(light_image=Image.open('client/quit.png'), dark_image=Image.open('client/quit.png'), size=(12.91, 17))
-    quit_button = CTkButton(master=frame, image=quit_button_image, width=30, height=30, fg_color="#466479", corner_radius=5, command=lambda: quit_app(app), text="")
+    quit_button = CTkButton(master=frame, image=quit_button_image, width=30, height=30, fg_color="#466479", corner_radius=5, command=lambda: quit_app(app, client1), text="")
     quit_button.place(x=10, y=440)
-
-
 
     global file_display_frame
     file_display_frame = CTkScrollableFrame(master=app, width=700, height=500, fg_color="#F7FDFF", corner_radius=0, scrollbar_button_color="#052F4E")
     file_display_frame.place(x=50, y=0)
+
+    global picture_frame
+    global progress
+    global text_per
+    global picture_label
+    picture_frame = CTkFrame(master=app, height=290,  width=425.59, fg_color="#F7FDFF")
+    loading = CTkImage(dark_image=Image.open("client/loading.png"), light_image=Image.open("client/loading.png"), size=(425.59,283))
+    picture_label = CTkLabel(master=picture_frame, image=loading, text="", corner_radius=0)
+    picture_label.place(x=0, y=0)
+    progress = CTkProgressBar(master=picture_frame, width=425.59, height=7, corner_radius=0,  fg_color="#F7FDFF")
+    progress.set(0.001)
+    progress.place(x=0, y=283)
+    text_per = CTkLabel(master=picture_frame, text="0%", font=('Archivo Black', 10, 'bold'), bg_color="#0A1721", height=10, width=20)
+    text_per.place(x=390, y=268)
+    
+    picture_frame.place(x=-750, y=0)
+    
 
     refresh(client1, file_display_frame)
     print("Main app UI displayed")
@@ -246,4 +327,4 @@ if __name__ == "__main__":
 
     start(app)
 
-    app.mainloop()
+    app.mainloop()  
