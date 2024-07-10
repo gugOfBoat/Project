@@ -102,7 +102,7 @@ class Client:
                     thread.start()
                     threads.append(thread)
                     break
-                time.sleep(0.5)
+                #time.sleep(0.5)
                 thread = threading.Thread(target=self.send_chunk, args=(chunk_num, chunk_data, ch, share_queue))
                 thread.start()
                 threads.append(thread)
@@ -127,7 +127,7 @@ class Client:
                 break
             if ch == True:
                 share_queue.put(len(chunk_data))
-            time.sleep(0.5)
+            # time.sleep(0.5)
             file_chunks.append((int(chunk_num.decode()), chunk_data))
 
 

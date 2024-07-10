@@ -46,7 +46,7 @@ def moved(share_queue,  client1, size_downloaded, filesize):
         text_done.place(x=78, y=145)
 
         progress.set(1)
-        app.after(2000, lambda: refresh(client1, file_display_frame))
+        app.after(1000, lambda: refresh(client1, file_display_frame))
 
 
 def upload(client1):
@@ -129,7 +129,7 @@ def refresh(client1, frame):
     if not files:
         # If no files, show an upload button or a message
         cat_unknown = CTkImage(dark_image=Image.open('client/upload_new.png'), light_image=Image.open('client/upload_new.png'), size=(50, 50))
-        upload_button = CTkButton(master=frame, text="  UPLOAD  \nNEW FILE", height=150, width=150, fg_color="#DCEDF8", image=cat_unknown, compound='top', font=('Archivo Black', 16, 'bold'), text_color="#011320", command=lambda: upload(client1), corner_radius=8, hover_color="#B5CDDD")
+        upload_button = CTkButton(master=frame, text="  UPLOAD  \nNEW FILE", height=150, width=150, fg_color="#B5CDDD", image=cat_unknown, compound='top', font=('Archivo Black', 16, 'bold'), text_color="#011320", command=lambda: upload(client1), corner_radius=8, hover_color="#466479")
         upload_button.grid(row=0, column=0, padx=20, pady=20, sticky="w")
         return
 
@@ -196,7 +196,7 @@ def refresh(client1, frame):
         col += 1
 
     cat_unknown = CTkImage(dark_image=Image.open('client/upload_new.png'), light_image=Image.open('client/upload_new.png'), size=(50, 50))
-    upload_button = CTkButton(master=frame, text="  UPLOAD  \nNEW FILE", height=150, width=150, fg_color="#DCEDF8", image=cat_unknown, compound='top', font=('Archivo Black', 16, 'bold'), text_color="#011320", command=lambda: upload(client1), corner_radius=8, hover_color="#B5CDDD")
+    upload_button = CTkButton(master=frame, text="  UPLOAD  \nNEW FILE", height=150, width=150, fg_color="#B5CDDD", image=cat_unknown, compound='top', font=('Archivo Black', 16, 'bold'), text_color="#011320", command=lambda: upload(client1), corner_radius=8, hover_color="#466479")
     if col == 0:
         upload_button.grid(row=row, column=col, padx=(20, 10), pady=20)
     elif col == 3:
