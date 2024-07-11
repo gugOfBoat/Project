@@ -43,7 +43,6 @@ def moved(share_queue,  client1, size_downloaded, filesize):
         picture_label.configure(image=done_img)
         text_per.configure(text ="100%", bg_color="#F99F3E", text_color="#0A1721")
         text_per.update()
-        text_done.place(x=78, y=145)
 
         progress.set(1)
         app.after(1000, lambda: refresh(client1, file_display_frame))
@@ -118,7 +117,6 @@ def refresh(client1, frame):
     picture_label.configure(image=loading)
     text_per.configure(text ="0%", bg_color="#0A1721", text_color="#F7FDFF")
     text_per.update()
-    text_done.place_forget()
     grey.place(x=-750, y=0)
     img_grey = CTkImage(dark_image=Image.open('client/paw.png'), light_image=Image.open('client/paw.png'), size=(750, 500))
     grey.configure(image=img_grey)
@@ -342,7 +340,6 @@ def show_main_app(client1):
     global text_per
     global picture_label
     global loading
-    global text_done
     global grey
     img_grey = CTkImage(dark_image=Image.open('client/paw.png'), light_image=Image.open('client/paw.png'), size=(750, 500))
     grey = CTkLabel(master=app, image=img_grey, text="")
@@ -356,8 +353,6 @@ def show_main_app(client1):
     progress.place(x=0, y=283)
     text_per = CTkLabel(master=picture_frame, text="0%", font=('Archivo Black', 10, 'bold'), bg_color="#0A1721", height=10, width=20)
     text_per.place(x=390, y=268)
-    text_done = CTkLabel(master=picture_frame, text="DONE!", font=('Archivo Black', 30, 'bold'), text_color="#0A1721")
-    text_done.place(x=-100, y=0)
     
     picture_frame.place(x=-750, y=0)
     
