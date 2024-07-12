@@ -232,7 +232,8 @@ def on_select(action, file_name, client1):
             download_thread = threading.Thread(target=client1.download_file, args=(file_name, des, True, share_queue))
             download_thread.daemon = True
             download_thread.start()
-            time.sleep(0.1)
+            while share_queue.empty():
+                time.sleep(0.1)
             filesize = share_queue.get(block=False)
             app.after(10, lambda: moved(share_queue, client1, size_downloaded, filesize))
     elif action == "DELETE":
