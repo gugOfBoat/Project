@@ -7,7 +7,6 @@ from tkinter import filedialog, messagebox
 import queue
 import threading
 import time
-
 SERVER_IP = socket.gethostbyname(socket.gethostname())
 SERVER_PORT = 5000
 
@@ -88,8 +87,8 @@ def get_file_icon(file_name):
         return Image.open('client/file_icon.png')
 
 def cut_string(filename):
-    if len(filename) > 35:
-        return filename[0:35] + "..."
+    if len(filename) > 31:
+        return filename[0:30] + "..."
     return filename
 
 def filesize(filesize):
@@ -103,6 +102,7 @@ def filesize(filesize):
         pre = size
         size= round(size/1024, 1)
         track += 1
+    pre = round(pre/1024,2)
     return f"{pre} {byte_tail[track]}"
 
 
@@ -172,7 +172,7 @@ def refresh(client1, frame):
         icon_label.pack(pady=(20, 5))
 
         # Display file name
-        name_label = CTkLabel(master=file_frame, text=cut_string(file_name), font=('Archivo', 10), wraplength=100, text_color="#011320")
+        name_label = CTkLabel(master=file_frame, text=cut_string(file_name), font=('Archivo', 10), wraplength=140, text_color="#011320")
         name_label.pack(pady=0)
 
         # Display file size
