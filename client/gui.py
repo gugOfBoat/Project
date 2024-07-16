@@ -80,7 +80,11 @@ def upload(client1):
         filesize = os.path.getsize(filepath)
         upload_thread = threading.Thread(target=client1.upload_file, args=(filepath, True, share_queue))
         upload_thread.daemon = True
-        upload_thread.start()
+        try:
+            upload_thread.start()
+        except Exception as e:
+            print(f"Error: {e}")
+            refresh(client1, file_display_frame)
         timer = threading.Timer(15, lambda: error_hand(client1, upload_thread))
         app.after(10, lambda: moved(share_queue, client1, size_downloaded, filesize, upload_thread, timer))
         
@@ -140,7 +144,7 @@ def refresh(client1, frame):
         files = client1.list()
     except Exception as e:
         print(f"Error: {e}")
-        show_initial_screen(app, True)
+        quit_app(app, client1)
 
 
     if not files:
@@ -250,7 +254,11 @@ def on_select(action, file_name, client1):
             size_downloaded = 0
             download_thread = threading.Thread(target=client1.download_file, args=(file_name, des, True, share_queue))
             download_thread.daemon = True
-            download_thread.start()
+            try:
+                download_thread.start()
+            except Exception as e:
+                print(f"Error: {e}")
+                refresh(client1, file_display_frame)
             while share_queue.empty():
                 time.sleep(0.1)
             filesize = share_queue.get(block=False)
@@ -258,7 +266,11 @@ def on_select(action, file_name, client1):
             app.after(10, lambda: moved(share_queue, client1, size_downloaded, filesize, download_thread, timer))
     elif action == "DELETE":
         if messagebox.askokcancel("Confirm Delete", f"Are you sure you want to delete the file '{file_name}'?"):
-            client1.delete_file(file_name)
+            try:
+                client1.delete_file(file_name)
+            except Exception as e:
+                print(f"Error: {e}")
+                refresh(client1, file_display_frame)
             refresh(client1, file_display_frame)
 
 def quit_app(app, client1):
@@ -371,7 +383,7 @@ def show_main_app(client1):
     loading = CTkImage(dark_image=Image.open("client/loading.png"), light_image=Image.open("client/loading.png"), size=(425.59,283))
     picture_label = CTkLabel(master=picture_frame, image=loading, text="", corner_radius=0)
     picture_label.place(x=0, y=0)
-    progress = CTkProgressBar(master=picture_frame, width=426, height=7, corner_radius=0,  fg_color="#F7FDFF", progress_color="#0A1721")
+    progress = CTkProgressBar(master=picture_frame, width=426, height=8, corner_radius=0,  fg_color="#F7FDFF", progress_color="#0A1721")
     progress.set(0.001)
     progress.place(x=0, y=283)
     text_per = CTkLabel(master=picture_frame, text="0%", font=('Archivo Black', 10, 'bold'), bg_color="#0A1721", height=10, width=20)
