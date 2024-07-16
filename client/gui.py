@@ -21,13 +21,21 @@ def take_screenshot():
     output = enhancer.enhance(0.5) 
     output.save("client/dark.png")
 
-def moved(share_queue,  client1, size_downloaded, filesize):
+def error_hand(client1, thread):
+    fai_img = CTkImage(dark_image=Image.open('client/loading.png'), light_image=Image.open('client/loading.png'), size=(425.59,283))
+    picture_label.configure(image=fai_img)
+    text_per.configure(text ="")
+    text_per.update()
+    app.after(1000, lambda: refresh(client1, file_display_frame))
+
+def moved(share_queue,  client1, size_downloaded, filesize, thread, timer):
     try:
         lent=share_queue.get(block = False)
     except queue.Empty:
         lent = 0
     else:
         size_downloaded += lent
+
         percentage = size_downloaded / filesize * 100
         per = str(int(percentage))
         text_per.configure(text = per + "%")
@@ -36,12 +44,17 @@ def moved(share_queue,  client1, size_downloaded, filesize):
         progress.set(float(percentage) / 100)
 
     if(size_downloaded < filesize):
-        app.after(10, lambda: moved(share_queue, client1, size_downloaded, filesize))
-    else:
+        if lent != 0:
+            timer.cancel()
+            timer = threading.Timer(5, lambda: error_hand(client1, thread))
+            timer.start()
+        app.after(10, lambda: moved(share_queue, client1, size_downloaded, filesize, thread, timer))
+    elif(size_downloaded >= filesize):
         done_img = CTkImage(dark_image=Image.open('client/done.png'), light_image=Image.open('client/done.png'), size=(425.59,283))
         picture_label.configure(image=done_img)
         text_per.configure(text ="100%", bg_color="#F99F3E", text_color="#0A1721")
         text_per.update()
+        timer.cancel()
 
         progress.set(1)
         app.after(1000, lambda: refresh(client1, file_display_frame))
@@ -56,7 +69,6 @@ def upload(client1):
             result = messagebox.askyesno("File Exists", f"The file '{filename}' already exists on the server. Do you want to overwrite it?")
             if not result:
                 return  # Cancel upload
-            
         time.sleep(0.2)
         take_screenshot()
         picture_frame.place(x=161.75, y=86.48)
@@ -69,7 +81,8 @@ def upload(client1):
         upload_thread = threading.Thread(target=client1.upload_file, args=(filepath, True, share_queue))
         upload_thread.daemon = True
         upload_thread.start()
-        app.after(10, lambda: moved(share_queue, client1, size_downloaded, filesize))
+        timer = threading.Timer(15, lambda: error_hand(client1, upload_thread))
+        app.after(10, lambda: moved(share_queue, client1, size_downloaded, filesize, upload_thread, timer))
         
 
 
@@ -122,7 +135,13 @@ def refresh(client1, frame):
     grey.configure(image=img_grey)
 
     # Fetch the list of files from client1
-    files = client1.list()
+    files = []
+    try:
+        files = client1.list()
+    except Exception as e:
+        print(f"Error: {e}")
+        show_initial_screen(app, True)
+
 
     if not files:
         # If no files, show an upload button or a message
@@ -235,7 +254,8 @@ def on_select(action, file_name, client1):
             while share_queue.empty():
                 time.sleep(0.1)
             filesize = share_queue.get(block=False)
-            app.after(10, lambda: moved(share_queue, client1, size_downloaded, filesize))
+            timer = threading.Timer(15, lambda: error_hand(client1, download_thread))
+            app.after(10, lambda: moved(share_queue, client1, size_downloaded, filesize, download_thread, timer))
     elif action == "DELETE":
         if messagebox.askokcancel("Confirm Delete", f"Are you sure you want to delete the file '{file_name}'?"):
             client1.delete_file(file_name)
@@ -269,7 +289,7 @@ def confirm():
             print(f"Error: {e}")
             label_incorrect.configure(text_color='#F36666')
                 
-def show_initial_screen(app):
+def show_initial_screen(app, ch = False):
     for widget in app.winfo_children():
         widget.destroy()
 
@@ -301,8 +321,10 @@ def show_initial_screen(app):
     port_entry.place(x=35, y=270)
 
     global label_incorrect
-    label_incorrect = CTkLabel(master=framer, text="SERVER NOT FOUND. TRY AGAIN", font=('Archivo', 11, 'bold'), text_color='#F7FDFF')
+    label_incorrect = CTkLabel(master=framer, text="SERVER ERROR. TRY AGAIN", font=('Archivo', 11, 'bold'), text_color='#F7FDFF')
     label_incorrect.place(x=35, y= 305)
+    if ch == True:
+        label_incorrect.configure(text_color='#F36666')
 
     confirm_button = CTkButton(master=framer, height=27, width=180, font=('Archivo Black', 14, 'bold'), text_color="#DCEDF8", fg_color="#052F4E", corner_radius=4, text="CONFIRM", command=confirm)
     confirm_button.place(x=35, y=330)
