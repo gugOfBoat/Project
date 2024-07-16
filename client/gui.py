@@ -22,7 +22,7 @@ def take_screenshot():
     output.save("client/dark.png")
 
 def error_hand(client1, thread):
-    fai_img = CTkImage(dark_image=Image.open('client/loading.png'), light_image=Image.open('client/loading.png'), size=(425.59,283))
+    fai_img = CTkImage(dark_image=Image.open('client/fail.png'), light_image=Image.open('client/fail.png'), size=(425.59,283))
     picture_label.configure(image=fai_img)
     text_per.configure(text ="")
     text_per.update()
@@ -144,7 +144,8 @@ def refresh(client1, frame):
         files = client1.list()
     except Exception as e:
         print(f"Error: {e}")
-        quit_app(app, client1)
+        client1.close()
+        show_initial_screen(app, True)
 
 
     if not files:
