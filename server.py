@@ -216,6 +216,9 @@ class ServerUI:
         self.log_text = scrolledtext.ScrolledText(root, wrap=tk.WORD, width=50, height=20, font=("Helvetica", 10))
         self.log_text.pack()
 
+        self.chunk_number_label = tk.Label(root, text="Current Chunk: 0", font=("Helvetica", 14))
+        self.chunk_number_label.pack()
+
         self.server = Server(SERVER_IP, SERVER_PORT, SERVER_FOLDER, self)
         threading.Thread(target=self.server.start).start()
 
@@ -226,6 +229,9 @@ class ServerUI:
 
     def update_client_count(self, count):
         self.label_client_count.config(text=f"Clients Connected: {count}")
+
+    def update_chunk_number(self, chunk_number):
+        self.chunk_number_label.config(text=f"Current Chunk: {chunk_number}")
 
 
 
