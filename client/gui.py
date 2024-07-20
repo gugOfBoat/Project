@@ -98,8 +98,10 @@ def get_file_icon(file_name):
         return Image.open('client/pdf_icon.png')
     elif extension in ['.txt']:
         return Image.open('client/txt_icon.png')
-    elif extension in ['.mp3']:
+    elif extension in ['.mp3', '.mp4']:
         return Image.open('client/audio_icon.png')
+    elif extension in ['.zip', '.rar']:
+        return Image.open('client/zip_icon.png')
     else:
         return Image.open('client/file_icon.png')
 
