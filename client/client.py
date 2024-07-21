@@ -88,11 +88,7 @@ class Client:
         return None
 
     def upload_file(self, filepath, ch = False, share_queue = None):
-        try:
-            self.send_data(b'u')
-        except Exception as e :
-            logging.error(f"Error connecting: {e}")
-            raise
+        self.send_data(b'u')
         self.send_data(os.path.basename(filepath).encode())
 
         threads = []
@@ -118,11 +114,7 @@ class Client:
         logging.info(f"File {os.path.basename(filepath)} uploaded successfully.")
 
     def download_file(self, filename, destination, ch = False, share_queue = None):
-        try:
-            self.send_data(b'd')
-        except Exception as e :
-            logging.error(f"Error connecting: {e}")
-            raise
+        self.send_data(b'd')
         self.send_data(filename.encode())
         filesize = self.receive_data().decode()
         if ch == True:
