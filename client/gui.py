@@ -64,7 +64,13 @@ def upload(client1):
     filepath = filedialog.askopenfilename()
     if filepath:
         filename = os.path.basename(filepath)
-        existing_files = client1.list()
+        existing_files = []
+        try:
+            existing_files = client1.list()
+        except Exception as e:
+            print(f"Error: {e}")
+            refresh(client1, file_display_frame)
+        
         if any(f[0] == filename for f in existing_files):
             result = messagebox.askyesno("File Exists", f"The file '{filename}' already exists on the server. Do you want to overwrite it?")
             if not result:
@@ -239,6 +245,11 @@ def refresh(client1, frame):
 
 def on_select(action, file_name, client1):
     if action == "DOWNLOAD":
+        try:
+            test = client1.list()
+        except Exception as e:
+            print(f"Error: {e}")
+            refresh(client1, file_display_frame)
         des = filedialog.askdirectory()
         if des:
             download_path = os.path.join(des, file_name)
@@ -255,6 +266,7 @@ def on_select(action, file_name, client1):
             picture_frame.place(x=161.75, y=86.48)
             share_queue = queue.Queue()
             size_downloaded = 0
+            
             download_thread = threading.Thread(target=client1.download_file, args=(file_name, des, True, share_queue))
             download_thread.daemon = True
             try:
@@ -262,6 +274,7 @@ def on_select(action, file_name, client1):
             except Exception as e:
                 print(f"Error: {e}")
                 refresh(client1, file_display_frame)
+                return
             while share_queue.empty():
                 time.sleep(0.1)
             filesize = share_queue.get(block=False)

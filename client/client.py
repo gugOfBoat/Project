@@ -88,7 +88,11 @@ class Client:
         return None
 
     def upload_file(self, filepath, ch = False, share_queue = None):
-        self.send_data(b'u')
+        try:
+            self.send_data(b'u')
+        except Exception as e :
+            logging.error(f"Error connecting: {e}")
+            raise
         self.send_data(os.path.basename(filepath).encode())
 
         threads = []
@@ -114,7 +118,11 @@ class Client:
         logging.info(f"File {os.path.basename(filepath)} uploaded successfully.")
 
     def download_file(self, filename, destination, ch = False, share_queue = None):
-        self.send_data(b'd')
+        try:
+            self.send_data(b'd')
+        except Exception as e :
+            logging.error(f"Error connecting: {e}")
+            raise
         self.send_data(filename.encode())
         filesize = self.receive_data().decode()
         if ch == True:
@@ -140,7 +148,11 @@ class Client:
 
     def list(self):
         list_file = []
-        self.send_data(b'r')
+        try:
+            self.send_data(b'r')
+        except Exception as e :
+            logging.error(f"Error connecting: {e}")
+            raise
         no_files = self.receive_data()
         for i in range(0, int(no_files.decode())):
             file_name, file_size = self.receive_data().split(b'::', 1)
@@ -148,7 +160,11 @@ class Client:
         return list_file
 
     def delete_file(self, filename):
-        self.send_data(b'x')
+        try:
+            self.send_data(b'x')
+        except Exception as e :
+            logging.error(f"Error connecting: {e}")
+            return
         self.send_data(filename.encode())
         response = self.receive_data()
         if response.decode() == "success":
