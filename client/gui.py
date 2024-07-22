@@ -60,7 +60,7 @@ def moved(share_queue,  client1, size_downloaded, filesize, thread, timer):
         timer.cancel()
 
         progress.set(1)
-        app.after(1000, lambda: refresh(client1, file_display_frame))
+        app.after(1500, lambda: refresh(client1, file_display_frame))
 
 
 def upload(client1):
