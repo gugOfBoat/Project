@@ -48,7 +48,10 @@ def moved(share_queue,  client1, size_downloaded, filesize, thread, timer):
             timer.cancel()
             timer = threading.Timer(5, lambda: error_hand(client1, thread))
             timer.start()
-        app.after(10, lambda: moved(share_queue, client1, size_downloaded, filesize, thread, timer))
+        if share_queue.empty():
+            app.after(5, lambda: moved(share_queue, client1, size_downloaded, filesize, thread, timer))
+        else :
+            app.after(1, lambda: moved(share_queue, client1, size_downloaded, filesize, thread, timer))
     elif(size_downloaded >= filesize):
         done_img = CTkImage(dark_image=Image.open('client/done.png'), light_image=Image.open('client/done.png'), size=(425.59,283))
         picture_label.configure(image=done_img)
