@@ -9,9 +9,9 @@ import tkinter as tk
 from tkinter import scrolledtext
 from datetime import datetime
 
-SERVER_IP = '26.207.74.96'
+SERVER_IP = socket.gethostbyname(socket.gethostname())
 SERVER_PORT = 5000
-BUFFER_SIZE = 1024 * 1024
+BUFFER_SIZE = 1024 * 102
 SERVER_FOLDER = "server"
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
