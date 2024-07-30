@@ -1,4 +1,5 @@
 import os
+import sys
 from customtkinter import *
 import client
 import socket

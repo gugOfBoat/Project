@@ -9,7 +9,7 @@ import tkinter as tk
 from tkinter import scrolledtext
 from datetime import datetime
 
-SERVER_IP = '26.207.74.96'
+SERVER_IP = socket.gethostbyname(socket.gethostname())
 SERVER_PORT = 5000
 BUFFER_SIZE = 1024 * 1024
 SERVER_FOLDER = "server"
@@ -252,7 +252,7 @@ class Server:
 class ServerUI:
     def __init__(self, root):
         self.root = root
-        self.root.title("File Transfer Server")
+        self.root.title("Upload/Download Server")
         self.root.resizable(False, False)  # Lock window size
 
         self.frame = tk.Frame(root)
@@ -264,7 +264,7 @@ class ServerUI:
         self.entry_ip = tk.Entry(self.frame, font=("Helvetica", 14), width=20)
         self.entry_ip.grid(row=0, column=1)
         self.entry_ip.insert(0, SERVER_IP)
-        self.entry_ip.config(state="readonly")  # Allow copying
+          # Allow copying
 
         self.label_port = tk.Label(self.frame, text="Server PORT:", font=("Helvetica", 14))
         self.label_port.grid(row=1, column=0, sticky="e")
@@ -296,6 +296,8 @@ class ServerUI:
         if not self.server or not self.server.running:
             self.server = Server(self.entry_ip.get(), int(self.entry_port.get()), SERVER_FOLDER, self)
             self.server.start()
+            self.entry_ip.config(state="readonly")
+            self.entry_port.config(state="readonly")
             self.start_button.config(state="disabled")
             self.stop_button.config(state="normal")
             self.log_message("Server started.")
@@ -310,6 +312,8 @@ class ServerUI:
                 return
 
             self.server.stop()
+            self.entry_ip.config(state="normal")
+            self.entry_port.config(state="normal")
             self.start_button.config(state="normal")
             self.stop_button.config(state="disabled")
             self.log_message("Server stopped.")
@@ -340,5 +344,6 @@ class ServerUI:
 if __name__ == "__main__":
     root = tk.Tk()
     ui = ServerUI(root)
+    root.iconbitmap('img/server_icon.ico')
     root.protocol("WM_DELETE_WINDOW", ui.on_closing)
     root.mainloop()
