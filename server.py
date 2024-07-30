@@ -9,7 +9,7 @@ import tkinter as tk
 from tkinter import scrolledtext
 from datetime import datetime
 
-SERVER_IP = socket.gethostbyname(socket.gethostname())
+SERVER_IP = '26.207.74.96'
 SERVER_PORT = 5000
 BUFFER_SIZE = 1024 * 1024
 SERVER_FOLDER = "server"
@@ -264,7 +264,7 @@ class ServerUI:
         self.entry_ip = tk.Entry(self.frame, font=("Helvetica", 14), width=20)
         self.entry_ip.grid(row=0, column=1)
         self.entry_ip.insert(0, SERVER_IP)
-        self.entry_ip.config(state="normal")  # Allow copying
+        self.entry_ip.config(state="readonly")  # Allow copying
 
         self.label_port = tk.Label(self.frame, text="Server PORT:", font=("Helvetica", 14))
         self.label_port.grid(row=1, column=0, sticky="e")
@@ -272,7 +272,7 @@ class ServerUI:
         self.entry_port = tk.Entry(self.frame, font=("Helvetica", 14), width=20)
         self.entry_port.grid(row=1, column=1)
         self.entry_port.insert(0, str(SERVER_PORT))
-        self.entry_port.config(state="normal")  # Allow copying
+        self.entry_port.config(state="readonly")  # Allow copying
 
         self.start_button = tk.Button(self.frame, text="Start Server", command=self.start_server, font=("Helvetica", 14))
         self.start_button.grid(row=2, column=0, pady=10)
@@ -281,7 +281,7 @@ class ServerUI:
         self.stop_button.grid(row=2, column=1, pady=10)
         self.stop_button.config(state="disabled")
 
-        self.text_area = scrolledtext.ScrolledText(self.frame, wrap=tk.WORD, height=20, width=80, font=("Helvetica", 12))
+        self.text_area = scrolledtext.ScrolledText(self.frame, wrap=tk.WORD, height=20, width=80, font=("Helvetica", 12), state='disabled')
         self.text_area.grid(row=3, column=0, columnspan=2)
 
         self.label_clients = tk.Label(self.frame, text="Connected Clients:", font=("Helvetica", 14))
@@ -317,9 +317,11 @@ class ServerUI:
             self.log_message("Server is not running.")
 
     def log_message(self, message):
+        self.text_area.config(state="normal")
         current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         self.text_area.insert(tk.END, f"[{current_time}] {message}\n")
         self.text_area.yview(tk.END)
+        self.text_area.config(state="disabled")
 
     def update_client_count(self, count):
         self.client_count.config(text=str(count))
